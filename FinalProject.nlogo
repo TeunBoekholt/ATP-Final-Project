@@ -1,31 +1,158 @@
+@ -0,0 +1,516 @@
+;; names
 
+breed [voters voter]
+breed [parties party]
+voters-own [preferred-party hated-parties]
+parties-own []
+
+
+
+to setup
+  clear-all
+  let coordinates [[0 0] [-40 40] [40 -40]]
+  let colors [45 65 95]
+  create-parties 3 [
+    let coord item who coordinates
+    setxy (first coord) (last coord)
+    let col item who colors
+    set color col
+    set shape "square"
+    set size 3
+  ]
+  create-voters number-voters [
+    let x random-normal 0 stdiv
+    let y random-normal 0 stdiv
+    if (x * y > distribution-width) [
+      ifelse random 100 > 50 [set ax
+      ] [
+        set y random-normal 0 stdiv
+      ]
+    ]
+    if x < -50 [set x -50]
+    if x > 50 [set x 50]
+    if y < -50 [set y -50]
+    if y > 50 [set y 50]
+    setxy x y
+    set preferred-party min-one-of parties [distance myself]
+    set hated-parties one-of parties who-are-not preferred-party
+    set shape "circle"
+    set color [color] of preferred-party
+  ]
+
+  reset-ticks
+end
+
+to go
+
+  tick
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
 10
-647
-448
+765
+566
 -1
 -1
-13.0
+5.42
 1
 10
 1
 1
 1
 0
+0
+0
 1
-1
-1
--16
-16
--16
-16
+-50
+50
+-50
+50
 0
 0
 1
 ticks
 30.0
+
+BUTTON
+12
+180
+104
+225
+NIL
+setup
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+112
+179
+193
+225
+NIL
+go
+T
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+0
+
+SLIDER
+15
+17
+187
+50
+number-voters
+number-voters
+0
+100
+77.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+14
+51
+186
+84
+distribution-width
+distribution-width
+0
+2500
+70.0
+10
+1
+NIL
+HORIZONTAL
+
+SLIDER
+16
+87
+188
+120
+stdiv
+stdiv
+0
+50
+20.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
