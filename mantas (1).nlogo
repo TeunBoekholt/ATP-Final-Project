@@ -45,7 +45,6 @@ to go
   eat
   hatch-plankton
 
-
   update-patches
 
   if count planktons = 0 [stop]
@@ -76,8 +75,8 @@ end
 
 to move-mantas
   ask mantas[
-    if movement-method = "angles" [move-mantas-with-angles]
-    if movement-method = "leaders" [move-mantas-with-all-angles]
+    if movement-method = "chain" [move-mantas-chain-feeding]
+    if movement-method = "alternative" [move-mantas-with-all-angles]
   ]
 end
 
@@ -109,18 +108,22 @@ to move-mantas-with-all-angles
   forward manta-speed
 end
 
-to move-mantas-with-angles
-  ;; find closest manta
-  let nearest-manta min-one-of other mantas in-cone manta-vision-distance manta-vision-radius [distance myself]
+to move-mantas-chain-feeding
+  ;; moves the mantas in a way that resembles their chain feeding behavior
+  let nearest-manta min-one-of other mantas in-cone manta-vision-distance manta-vision-radius [distance myself] ; find closest manta
   ifelse (nearest-manta != nobody) and distance nearest-manta > manta-separation [
     ;; if there is another manta close by, swim towards the middle of them and where the most plankton is
-    let preferred-direction calculate-heading true nearest-manta
+    let preferred-direction calculate-heading true nearest-manta ; the direction to follow the nearest manta
     set preferred-direction average-angle preferred-direction calculate-heading false nearest-manta
-    let preferred-turn subtract-headings preferred-direction heading
+      ; average with the previous calculation and the direction to the patch with the most plankton
+
+    let preferred-turn subtract-headings preferred-direction heading ; find how much the manta needs to turn to go in our preferred direction
     ;; keep the mantas from making impossibly sharp turns
     ifelse preferred-turn * previous-turn < 0 and smooth-turns?[
+      ;; if the manta is switching directions from how it was swimming previously, set the current turn somewhere in the middle
       set previous-turn mean (list (preferred-turn * turn-ratio) previous-turn)
     ][
+      ;; otherwise, turn the direction (possibly limited by turn-ratio)
       set previous-turn preferred-turn * turn-ratio
     ]
     ;; turn and swim forward
@@ -143,42 +146,34 @@ to move-mantas-with-angles
 end
 
 to-report calculate-heading [follow? nearest-manta]
-  ;; find what the heading of this manta should be to face the patch with the most plankton on it.
-  let original-h heading
+  ;; find what the heading of this manta should be to face the closest manta (if follow? is true) or the patch with the most plankton on it.
+  let new-h 0
   ifelse follow? [
-    face nearest-manta
+    set new-h (towards nearest-manta)
   ] [
-    face max-one-of patches in-cone manta-vision-distance manta-vision-radius [count planktons-here]
+    set new-h towards max-one-of patches in-cone manta-vision-distance manta-vision-radius [count planktons-here]
   ]
-  let new-h heading
-  set heading original-h
   report new-h
 end
 
 to hatch-plankton
-  if count planktons < plankton-population-limit[
-    create-planktons number-of-hatch [
-      setxy random-xcor random-ycor
-      set hidden? true
-    ]
+  ;; has all plankton reproduce with a set probablity
+  ask planktons [
+    if random 10000 < plankton-repopulation and count planktons < plankton-population-limit [hatch 1]
   ]
 end
 
 to eat
+  ;; lets the mantas eat a specific proportion of the plankton population on any given patch.
   ask mantas [
     if any? planktons-here [
-      ifelse count planktons-here < plankton-in-one-bite [
-        set plankton-eaten plankton-eaten + count planktons-here
-        ask planktons-here [die]
-      ][
-        set plankton-eaten plankton-eaten + plankton-in-one-bite
-        ask n-of plankton-in-one-bite planktons-here [die]
-      ]
+      ask n-of ((plankton-in-one-bite / 100) * count planktons-here) planktons-here [die]
     ]
   ]
 end
 
 to-report average-angle [angle1 angle2]
+  ;; calculates the angle which lies exactly in the middle of the two given angles
   let difference subtract-headings angle1 angle2
   report (angle1 - (difference / 2))
 end
@@ -186,9 +181,11 @@ end
 
 to update-patches
   ask patches [
+    ;; sets the color of patches to the right color to reflect the amount of plankton there
     set pcolor sky + 3 - (0.05 * count planktons-here)
     if pcolor > 99 [set pcolor 99]
     if pcolor < 91 [set pcolor 91]
+    ;; updates the flow of the water if there are mantas swimming over it
     if any? mantas-here [
       set flow average-angle [heading] of one-of mantas-here flow
       ask neighbors4 [
@@ -320,9 +317,9 @@ count planktons
 
 SLIDER
 32
-363
+403
 204
-396
+436
 manta-vision-radius
 manta-vision-radius
 0
@@ -335,9 +332,9 @@ HORIZONTAL
 
 SLIDER
 32
-398
+438
 204
-431
+471
 manta-vision-distance
 manta-vision-distance
 0
@@ -350,9 +347,9 @@ HORIZONTAL
 
 SLIDER
 31
-510
+550
 205
-543
+583
 water-flow
 water-flow
 0
@@ -383,9 +380,9 @@ PENS
 
 SLIDER
 32
-329
+369
 204
-362
+402
 manta-speed
 manta-speed
 0
@@ -413,29 +410,29 @@ HORIZONTAL
 
 SLIDER
 32
-294
+334
 205
-327
+367
 plankton-in-one-bite
 plankton-in-one-bite
 0
-50
-10.0
+100
+50.0
 1
 1
-NIL
+%
 HORIZONTAL
 
 SLIDER
 32
-466
+506
 204
-499
+539
 turn-ratio
 turn-ratio
 0
 1
-0.3
+0.4
 0.1
 1
 NIL
@@ -458,9 +455,9 @@ HORIZONTAL
 
 SLIDER
 32
-432
+472
 204
-465
+505
 manta-separation
 manta-separation
 0
@@ -533,10 +530,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "ifelse ticks != 0 [plot plankton-eaten / ticks][plot plankton-eaten]"
 
 SLIDER
-211
-132
-248
-282
+32
+284
+204
+317
 number-of-hatch
 number-of-hatch
 0
@@ -545,7 +542,7 @@ number-of-hatch
 10
 1
 NIL
-VERTICAL
+HORIZONTAL
 
 CHOOSER
 887
@@ -554,7 +551,7 @@ CHOOSER
 495
 movement-method
 movement-method
-"angles" "leaders"
+"chain" "alternative"
 0
 
 @#$#@#$#@
