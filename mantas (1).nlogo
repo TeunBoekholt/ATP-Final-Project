@@ -59,11 +59,10 @@ to move-plankton
       forward plankton-speed
   ] [
       set heading [flow] of patch-here + random 180 - 90
-      if random 100 < 20 [set heading random 360]
+      if random 100 < 10 [set heading random 360]
       forward plankton-speed * plankton-diffusion
     ]
   ]
-
 end
 
 to feed-mantas
@@ -92,7 +91,7 @@ to move-mantas-with-all-angles
   let nearest-manta min-one-of other mantas in-cone manta-vision-distance manta-vision-radius [distance myself]
 
   if (nearest-manta != nobody)[
-    let preferred-direction calculate-heading false nearest-manta
+    let preferred-direction calculate-heading
     let preferred-turn subtract-headings preferred-direction heading
     ;; keep the mantas from making impossibly sharp turns
     ifelse preferred-turn * previous-turn < 0 and smooth-turns?[
@@ -113,8 +112,8 @@ to move-mantas-chain-feeding
   let nearest-manta min-one-of other mantas in-cone manta-vision-distance manta-vision-radius [distance myself] ; find closest manta
   ifelse (nearest-manta != nobody) and distance nearest-manta > manta-separation [
     ;; if there is another manta close by, swim towards the middle of them and where the most plankton is
-    let preferred-direction calculate-heading true nearest-manta ; the direction to follow the nearest manta
-    set preferred-direction average-angle preferred-direction calculate-heading false nearest-manta
+    let preferred-direction towards nearest-manta ; the direction to follow the nearest manta
+    set preferred-direction average-angle preferred-direction calculate-heading
       ; average with the previous calculation and the direction to the patch with the most plankton
 
     let preferred-turn subtract-headings preferred-direction heading ; find how much the manta needs to turn to go in our preferred direction
@@ -131,7 +130,7 @@ to move-mantas-chain-feeding
     forward manta-speed
   ] [
     ;; if there's no other mantas to follow, just swim towards the most plankton
-    let preferred-direction calculate-heading false nearest-manta
+    let preferred-direction calculate-heading
     let preferred-turn subtract-headings preferred-direction heading
     ;; keep the mantas from making impossibly sharp turns
     ifelse preferred-turn * previous-turn < 0 and smooth-turns?[
@@ -145,15 +144,9 @@ to move-mantas-chain-feeding
   ]
 end
 
-to-report calculate-heading [follow? nearest-manta]
-  ;; find what the heading of this manta should be to face the closest manta (if follow? is true) or the patch with the most plankton on it.
-  let new-h 0
-  ifelse follow? [
-    set new-h (towards nearest-manta)
-  ] [
-    set new-h towards max-one-of patches in-cone manta-vision-distance manta-vision-radius [count planktons-here]
-  ]
-  report new-h
+to-report calculate-heading
+  ;; find the direction of the patch with the most plankton on it.
+  report towards max-one-of patches in-cone manta-vision-distance manta-vision-radius [count planktons-here]
 end
 
 to hatch-plankton
@@ -286,7 +279,7 @@ plankton-density
 75.0
 1
 1
-NIL
+%
 HORIZONTAL
 
 SLIDER
