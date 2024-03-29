@@ -66,75 +66,18 @@ to move-plankton
   ]
 end
 
+to hatch-plankton
+  ;; has all plankton reproduce with a set probablity
+  ask planktons [
+    if random 10000 < plankton-repopulation and count planktons < plankton-population-limit [hatch 1]
+  ]
+end
+
 ;; Function that spawns a batch of plankton in the middle of the world
 to feed-mantas
   create-planktons 50 * plankton-density [
     setxy 0 0
     set hidden? true
-  ]
-end
-
-to move-mantas
-  ask mantas [
-    if movement-method = "one" [move-mantas-one]
-    if movement-method = "alternative" [move-mantas-]
-  ]
-end
-
-
-;; moves the mantas in a way that resembles their behavior at face-validity
-to move-mantas-one
-  ;; sets some variables to use later
-  let nearest-manta min-one-of other mantas in-cone manta-vision-distance manta-vision-radius [distance myself] ; find closest manta
-  let preferred-direction calculate-heading ; finds a nearby patch with the most plankton on it
-  let max-turn 180 * turn-ratio / 100 ; sets max turn to the biggest possible turn the mantas can make
-
-  ifelse (nearest-manta != nobody) [
-    ;; if there is another manta close by, either swim away or towards them based on how close they are
-    ;; the preferred-direction is set to the average angle of this and the patch with the most plankton nearby
-    ifelse distance nearest-manta < manta-separation [
-      set preferred-direction average-angle (towards nearest-manta - 180) preferred-direction 1
-    ] [
-      set preferred-direction average-angle (towards nearest-manta) preferred-direction 1
-    ]
-    ;; turn and swim forward
-    let preferred-turn subtract-headings preferred-direction heading
-    rt find-turn preferred-turn max-turn 1
-    forward manta-speed
-  ] [
-    ;; if there's no other mantas nearby, just swim towards the most plankton
-    let preferred-turn subtract-headings preferred-direction heading
-    rt find-turn preferred-turn max-turn 1
-    forward manta-speed
-  ]
-end
-
-;; helper function for manta-move-one
-to-report find-turn [preferred-turn max-turn index]
-  ;; keep the mantas from making impossibly sharp turns
-  ifelse abs (preferred-turn - previous-turn) < max-turn or index > 5 [
-    report preferred-turn
-  ] [
-    report find-turn (mean (list preferred-turn previous-turn)) max-turn (index + 1)
-  ]
-end
-
-;; helper function for manta-move-one
-to-report calculate-heading
-  ;; find the direction of the patch with the most plankton on it.
-  report towards max-one-of patches in-cone manta-vision-distance manta-vision-radius [count planktons-here]
-end
-
-
-to move-mantas-
-  ;; implement the other ways here
-end
-
-
-to hatch-plankton
-  ;; has all plankton reproduce with a set probablity
-  ask planktons [
-    if random 10000 < plankton-repopulation and count planktons < plankton-population-limit [hatch 1]
   ]
 end
 
@@ -156,7 +99,6 @@ to-report average-angle [angle1 angle2 ratio]
   report new-angle
 end
 
-
 to update-patches
   ask patches [
     ;; sets the color of patches to the right color to reflect the amount of plankton there
@@ -174,6 +116,64 @@ to update-patches
       ]
     ]
   ]
+end
+
+
+to move-mantas
+  ask mantas [
+    if movement-method = "one" [move-mantas-one]
+    if movement-method = "alternative" [move-mantas-]
+  ]
+end
+
+
+;; moves the mantas in a way that resembles their behavior at face-validity
+to move-mantas-one
+  ;; sets some variables to use later
+  let nearest-manta min-one-of other mantas in-cone manta-vision-distance manta-vision-radius [distance myself] ; find closest manta
+  let preferred-direction calculate-heading ; finds a nearby patch with the most plankton on it
+  let max-turn 180 * turn-ratio / 100 ; sets max turn to the biggest possible turn the mantas can make
+
+  if (nearest-manta != nobody) [
+    ;; if there is another manta close by, either swim away or towards them based on how close they are
+    ;; the preferred-direction is set to the average angle of this and the patch with the most plankton nearby
+    ifelse distance nearest-manta < manta-separation [
+      set preferred-direction average-angle (towards nearest-manta - 180) preferred-direction 1
+    ] [
+      set preferred-direction average-angle (towards nearest-manta) preferred-direction 1
+    ]
+  ]
+  ;; turn and swim forward
+  let preferred-turn subtract-headings preferred-direction heading
+  rt find-turn preferred-turn max-turn 1
+  forward manta-speed
+end
+
+;; helper function for manta-move-one
+to-report find-turn [preferred-turn max-turn]
+  ;; keep the mantas from making impossibly sharp turns
+  ifelse abs (preferred-turn - previous-turn) < max-turn [
+    ;; return the preferred-turn if there are no restrictions needed
+    report preferred-turn
+  ] [
+    ;; return the previous-turn, changed by the max-turn in the direction we want to turn
+    ifelse preferred-turn - previous-turn < 0 [
+      report previous-turn - max-turn
+    ] [
+      report previous-turn + max-turn
+    ]
+  ]
+end
+
+;; helper function for manta-move-one
+to-report calculate-heading
+  ;; find the direction of the patch with the most plankton on it.
+  report towards max-one-of patches in-cone manta-vision-distance manta-vision-radius [count planktons-here]
+end
+
+
+to move-mantas-
+  ;; implement the other ways here
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
