@@ -11,11 +11,12 @@ breed [mantas manta]
 breed [planktons plankton]
 
 patches-own [flow]
-mantas-own [previous-turn mantamates]
+mantas-own [mantamates]
 planktons-own []
 
 to setup
   clear-all
+
 
   create-mantas number-of-mantas [
     setxy random-xcor random-ycor
@@ -32,7 +33,7 @@ to setup
   ask patches [
     set pcolor sky + 3
     set pcolor pcolor - 0.01 * count planktons-here
-    set flow 0
+    set flow random 360
   ]
 
   set plankton-eaten 0
@@ -41,16 +42,15 @@ end
 
 to go
   move-plankton
-  move-mantas
+  manta-move
   eat
   hatch-plankton
-
   update-patches
 
   if count planktons = 0 [stop]
-
   tick
 end
+
 
 to move-plankton
   ask planktons [
@@ -95,6 +95,10 @@ end
 to-report average-angle [angle1 angle2 ratio]
   ;; calculates the angle which lies exactly in the middle of the two given angles
   ;; if the ratio is higher than one, this function is called again and the new angle is set to the middle of the new angle and angle2
+  if ratio = 0 [
+    report angle1
+  ]
+
   let difference subtract-headings angle1 angle2
   let new-angle (angle1 - (difference / 2))
   if ratio > 1 [set new-angle average-angle new-angle angle2 (ratio - 1)]
@@ -120,48 +124,18 @@ to update-patches
   ]
 end
 
-
-to move-mantas
-  ask mantas [
-    if movement-method = "one" [move-mantas-one]
-    if movement-method = "two" [move-mantas-two]
-  ]
-end
-
-;; moves the mantas in a way that resembles their behavior at face-validity
-to move-mantas-one
-  ;; sets some variables to use later
-  let nearest-manta min-one-of other mantas in-cone manta-vision-distance manta-vision-radius [distance myself] ; find closest manta
-  let preferred-direction calculate-heading ; finds a nearby patch with the most plankton on it
-  let max-turn 180 * turn-ratio / 100 ; sets max turn to the biggest possible turn the mantas can make
-
-  if (nearest-manta != nobody) [
-    ;; if there is another manta close by, either swim away or towards them based on how close they are
-    ;; the preferred-direction is set to the average angle of this and the patch with the most plankton nearby
-    ifelse distance nearest-manta < manta-separation [
-      set preferred-direction average-angle (towards nearest-manta - 180) preferred-direction 1
-    ] [
-      set preferred-direction average-angle (towards nearest-manta) preferred-direction 1
-    ]
-  ]
-  ;; turn and swim forward
-  let preferred-turn subtract-headings preferred-direction heading
-  rt find-turn preferred-turn max-turn
-  forward manta-speed
-end
-
 ;; helper function for manta-move-one
-to-report find-turn [preferred-turn max-turn]
+to-report find-turn [preferred-turn]
   ;; keep the mantas from making impossibly sharp turns
-  ifelse abs (preferred-turn - previous-turn) < max-turn [
+  ifelse abs (preferred-turn) < max-turn [
     ;; return the preferred-turn if there are no restrictions needed
     report preferred-turn
   ] [
     ;; return the previous-turn, changed by the max-turn in the direction we want to turn
-    ifelse preferred-turn - previous-turn < 0 [
-      report previous-turn - max-turn
+    ifelse preferred-turn < 0 [
+      report -1 * max-turn
     ] [
-      report previous-turn + max-turn
+      report max-turn
     ]
   ]
 end
@@ -172,31 +146,47 @@ to-report calculate-heading
   report towards max-one-of patches in-cone manta-vision-distance manta-vision-radius [count planktons-here]
 end
 
-;; Move the mantas using a boid like approach generally seen in schools of fish
-to move-mantas-two
+;; Move the mantas using a boid-like approach generally seen in schools of fish
+to manta-move
+  ask mantas [
 
-  set mantamates other mantas in-cone manta-vision-distance manta-vision-radius ;; All other mantas within the vision radius and distance
-  ifelse any? mantamates[
-    let nearest-manta min-one-of other mantas in-cone manta-vision-distance manta-vision-radius [distance myself] ; Find closest manta
+    let flow-heading [flow] of patch-here
 
-    ifelse distance nearest-manta < manta-separation [ ;; If the manta is swimming too close to the other mantas it will turn away from them
-      let desired-heading average-angle average-manta-heading calculate-heading 1
-      let desired-turn subtract-headings heading desired-heading
-      rt desired-turn * (turn-ratio / 100)
-    ][ ;; Otherwise the manta will swim towards the other mantas
-      let desired-heading average-angle average-manta-heading calculate-heading 1
+
+
+
+    set mantamates other mantas in-cone manta-vision-distance manta-vision-radius ;; ALL other mantas within the vision radius and distance
+    ifelse any? mantamates[
+      let nearest-manta min-one-of other mantas in-cone manta-vision-distance manta-vision-radius [distance myself] ; Find closest manta
+
+      ifelse distance nearest-manta < manta-separation [ ;; If the manta is swimming too close to the other mantas it will turn away from them
+        let desired-heading average-angle heading calculate-heading impact-of-plankton
+        set desired-heading average-angle desired-heading average-manta-heading impact-of-other-mantas
+        set desired-heading average-angle desired-heading flow-heading impact-of-flow
+        let desired-turn subtract-headings heading desired-heading
+        rt find-turn desired-turn
+      ][ ;; Otherwise the manta will swim towards the other mantas
+        let desired-heading average-angle heading calculate-heading impact-of-plankton
+        set desired-heading average-angle desired-heading average-manta-heading impact-of-other-mantas
+        set desired-heading average-angle desired-heading flow-heading impact-of-flow
+        let desired-turn subtract-headings desired-heading heading
+        rt find-turn desired-turn
+      ]
+    ] [
+      let desired-heading average-angle heading calculate-heading impact-of-plankton
+      set desired-heading average-angle desired-heading flow-heading impact-of-flow
       let desired-turn subtract-headings desired-heading heading
-      rt desired-turn * (turn-ratio / 100)
+
+      rt find-turn desired-turn
     ]
-  ] [
-      let desired-turn subtract-headings calculate-heading heading
-      rt desired-turn * (turn-ratio / 100)
+    forward manta-speed
   ]
-  forward manta-speed
 end
 
+
+
 ;; Helper function for move-mantas-two
-;; This function is greatly inspired by the existing boid flocking model
+;; This function is greatly inspired by the existing boid flocking model found in Sample Models/Biology/Flocking
 to-report average-manta-heading
   ;; We can't just average the heading variables here.
   ;; For example, the average of 1 and 359 should be 0,
@@ -244,7 +234,7 @@ number-of-mantas
 number-of-mantas
 0
 100
-40.0
+20.0
 1
 1
 NIL
@@ -349,17 +339,17 @@ manta-vision-distance
 manta-vision-distance
 0
 10
-10.0
+6.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-31
-508
-205
-541
+33
+469
+207
+502
 water-flow
 water-flow
 1
@@ -425,21 +415,6 @@ SLIDER
 325
 plankton-in-one-bite
 plankton-in-one-bite
-0
-100
-20.0
-1
-1
-%
-HORIZONTAL
-
-SLIDER
-32
-464
-204
-497
-turn-ratio
-turn-ratio
 0
 100
 20.0
@@ -528,15 +503,65 @@ false
 PENS
 "default" 1.0 0 -16777216 true "" "ifelse ticks != 0 [plot plankton-eaten / ticks][plot plankton-eaten]"
 
-CHOOSER
-886
-414
-1029
-459
-movement-method
-movement-method
-"one" "two"
+SLIDER
+212
+241
+249
+391
+max-turn
+max-turn
+0
+180
+12.0
 1
+1
+NIL
+VERTICAL
+
+SLIDER
+36
+590
+208
+623
+impact-of-flow
+impact-of-flow
+0
+10
+0.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+37
+555
+243
+588
+impact-of-other-mantas
+impact-of-other-mantas
+0
+10
+0.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+36
+520
+211
+553
+impact-of-plankton
+impact-of-plankton
+0
+10
+0.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
